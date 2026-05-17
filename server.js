@@ -16,17 +16,17 @@ let waitingUser = null
 
 io.on("connection", (socket) => {
 
-  console.log("Yeni kullanıcı:", socket.id)
+  console.log("Yeni kullanıcı")
 
-  socket.on("find-partner", () => {
+  socket.on("find-partner", (peerId) => {
+
+    socket.peerId = peerId
 
     if (waitingUser && waitingUser !== socket) {
 
-      socket.partner = waitingUser.id
-      waitingUser.partner = socket.id
+      io.to(socket.id).emit("matched", waitingUser.peerId)
 
-      io.to(socket.id).emit("matched", waitingUser.id)
-      io.to(waitingUser.id).emit("matched", socket.id)
+      io.to(waitingUser.id).emit("matched", socket.peerId)
 
       waitingUser = null
 
