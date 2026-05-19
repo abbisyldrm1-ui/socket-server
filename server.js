@@ -1,55 +1,133 @@
-const express = require("express")
-const http = require("http")
-const { Server } = require("socket.io")
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 
-const app = express()
+const app = express();
 
-const server = http.createServer(app)
+const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
     origin: "*",
+    methods: ["GET", "POST"],
   },
-})
+});
 
-let waitingUser = null
+app.get("/", (req, res) => {
+  res.send("AURA SERVER LIVE");
+});
+
+let waitingUser = null;
 
 io.on("connection", (socket) => {
 
-  console.log("Yeni kullanıcı")
+  console.log("USER CONNECTED:", socket.id);
 
-  socket.on("find-partner", (peerId) => {
+  // FIND MATCH
+  socket.on("find", () => {
 
-    socket.peerId = peerId
+    console.log("FIND:", socket.id);
 
-    if (waitingUser && waitingUser !== socket) {
+    // KENDİNİ TEMİZLE
+    socket.partner = null;
 
-      io.to(socket.id).emit("matched", waitingUser.peerId)
+    // EŞLEŞTİR
+    if (waitingUser && waitingUser.id !== socket.id) {
 
-      io.to(waitingUser.id).emit("matched", socket.peerId)
+      const partner = waitingUser;
 
-      waitingUser = null
+      waitingUser = null;
+
+      socket.partner = partner.id;
+      partner.partner = socket.id;
+
+      console.log("MATCHED:", socket.id, partner.id);
+
+      // İLK KİŞİ
+      socket.emit("matched", {
+        partnerId: partner.id,
+        initiator: true,
+      });
+
+      // İKİNCİ KİŞİ
+      partner.emit("matched", {
+        partnerId: socket.id,
+        initiator: false,
+      });
 
     } else {
 
-      waitingUser = socket
+      // BEKLEME
+      waitingUser = socket;
 
-      socket.emit("waiting")
+      console.log("WAITING:", socket.id);
+
+      socket.emit("waiting");
 
     }
 
-  })
+  });
 
+  // WEBRTC SIGNAL
+  socket.on("signal", ({ to, data }) => {
+
+    console.log("SIGNAL:", socket.id, "→", to);
+
+    io.to(to).emit("signal", {
+      from: socket.id,
+      data,
+    });
+
+  });
+
+  // NEXT
+  socket.on("next", () => {
+
+    console.log("NEXT:", socket.id);
+
+    // ESKİ PARTNERİ AYIR
+    if (socket.partner) {
+
+      io.to(socket.partner).emit("partner-left");
+
+    }
+
+    socket.partner = null;
+
+    // YENİDEN BEKLE
+    waitingUser = socket;
+
+    socket.emit("waiting");
+
+  });
+
+  // DISCONNECT
   socket.on("disconnect", () => {
 
-    if (waitingUser?.id === socket.id) {
-      waitingUser = null
+    console.log("DISCONNECT:", socket.id);
+
+    // WAITING İSE TEMİZLE
+    if (waitingUser && waitingUser.id === socket.id) {
+
+      waitingUser = null;
+
     }
 
-  })
+    // PARTNER VARSA AYIR
+    if (socket.partner) {
 
-})
+      io.to(socket.partner).emit("partner-left");
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log("Socket server aktif")
-})
+    }
+
+  });
+
+});
+
+const PORT = process.env.PORT || 3001;
+
+server.listen(PORT, () => {
+
+  console.log("SERVER RUNNING:", PORT);
+
+});
