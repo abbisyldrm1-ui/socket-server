@@ -1,421 +1,106 @@
 "use client";
 
-import "./globals.css";
+import { useEffect, useRef, useState } from "react";
+import io from "socket.io-client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import { io } from "socket.io-client";
-
-import Peer from "peerjs";
-
-const socket =
-  io("http://localhost:3001");
+const socket = io("https://socket-server-1-d5rs.onrender.com");
 
 export default function Home() {
 
-  const localVideoRef =
-    useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
 
-  const remoteVideoRef =
-    useRef<HTMLVideoElement>(null);
-
-  const peerRef = useRef<any>(null);
-
-  const currentCall =
-    useRef<any>(null);
-
-  const localStream =
-    useRef<MediaStream | null>(null);
-
-  const [matched, setMatched] =
-    useState(false);
-
-  const [searching, setSearching] =
-    useState(false);
-
-  const [mic, setMic] =
-    useState(true);
-
-  const [cam, setCam] =
-    useState(true);
+  const [status, setStatus] = useState("EŞLEŞME BEKLENİYOR...");
+  const [matched, setMatched] = useState(false);
 
   useEffect(() => {
-
-    async function startCamera() {
-
-      try {
-
-        const stream =
-          await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-          });
-
-        localStream.current =
-          stream;
-
-        if (localVideoRef.current) {
-
-          localVideoRef.current.srcObject =
-            stream;
-
-        }
-
-      } catch (err) {
-        console.log(err);
-      }
-    }
 
     startCamera();
 
-  }, []);
-
-  useEffect(() => {
-
-    const peer =
-      new Peer();
-
-    peerRef.current = peer;
-
-    peer.on("open", (id) => {
-
-      console.log("PEER:", id);
-
-      socket.emit("peer-id", id);
-
+    socket.on("waiting", () => {
+      setStatus("KULLANICI BEKLENİYOR...");
     });
 
-    peer.on("call", (call) => {
+    socket.on("matched", () => {
+      setMatched(true);
+      setStatus("EŞLEŞTİN 🔥");
+    });
 
-      if (!localStream.current)
-        return;
+    return () => {
+      socket.off("waiting");
+      socket.off("matched");
+    };
 
-      call.answer(localStream.current);
+  }, []);
 
-      call.on("stream", (remote) => {
+  const startCamera = async () => {
 
-        if (remoteVideoRef.current) {
+    try {
 
-          remoteVideoRef.current.srcObject =
-            remote;
-
-        }
-
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
       });
 
-      currentCall.current = call;
-
-    });
-
-  }, []);
-
-  useEffect(() => {
-
-    socket.on("waiting", () => {
-
-      setSearching(true);
-
-      setMatched(false);
-
-    });
-
-    socket.on("matched", ({
-      peerId,
-    }) => {
-
-      setSearching(false);
-
-      setMatched(true);
-
-      if (
-        peerId &&
-        peerRef.current &&
-        localStream.current
-      ) {
-
-        const call =
-          peerRef.current.call(
-            peerId,
-            localStream.current
-          );
-
-        call.on("stream", (remote) => {
-
-          if (remoteVideoRef.current) {
-
-            remoteVideoRef.current.srcObject =
-              remote;
-
-          }
-
-        });
-
-        currentCall.current = call;
-
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
       }
 
-    });
+    } catch (err) {
 
-  }, []);
+      console.log(err);
 
-  const toggleMic = () => {
-
-    const stream =
-      localStream.current;
-
-    if (stream) {
-
-      stream
-        .getAudioTracks()
-        .forEach((track) => {
-
-          track.enabled = !mic;
-
-        });
+      setStatus("KAMERA AÇILAMADI");
 
     }
 
-    setMic(!mic);
-  };
-
-  const toggleCam = () => {
-
-    const stream =
-      localStream.current;
-
-    if (stream) {
-
-      stream
-        .getVideoTracks()
-        .forEach((track) => {
-
-          track.enabled = !cam;
-
-        });
-
-    }
-
-    setCam(!cam);
   };
 
   const findMatch = () => {
+
+    setStatus("EŞLEŞME ARANIYOR...");
 
     socket.emit("find-match");
 
   };
 
-  const nextUser = () => {
-
-    currentCall.current?.close();
-
-    socket.emit("next");
-
-    setMatched(false);
-
-    setSearching(true);
-
-  };
-
   return (
 
-    <main className="app">
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-5">
 
-      <section className="phone">
+      <h1 className="text-4xl font-bold text-yellow-400">
+        AURA LIVE
+      </h1>
 
-        <div className="topBar">
+      <video
+        ref={localVideoRef}
+        autoPlay
+        muted
+        playsInline
+        className="w-80 h-96 rounded-2xl border-2 border-yellow-500 object-cover"
+      />
 
-          <div className="logoWrap">
+      <div className="text-lg font-semibold">
+        {status}
+      </div>
 
-            <div className="diamond">
-              💎
-            </div>
+      <button
+        onClick={findMatch}
+        className="px-6 py-3 bg-yellow-500 text-black rounded-full font-bold"
+      >
+        EŞLEŞME ARA
+      </button>
 
-            <div>
-              <h1>AURA</h1>
-              <p>LIVE</p>
-            </div>
+      {matched && (
 
-          </div>
+        <button
+          className="px-6 py-3 bg-red-500 rounded-full font-bold"
+        >
+          SONRAKİ
+        </button>
 
-          <div className="onlineBox">
+      )}
 
-            <div className="onlineDot"></div>
+    </div>
 
-            1284
-
-          </div>
-
-        </div>
-
-        <div className="cameraBox">
-
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-          />
-
-        </div>
-
-        {matched && (
-
-          <div className="remoteBox">
-
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-            />
-
-          </div>
-
-        )}
-
-        <div className="centerArea">
-
-          {!matched && (
-            <>
-              <div className="dots">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-
-              <h2>
-                EŞLEŞME
-                <br />
-                {searching
-                  ? "ARANIYOR"
-                  : "BEKLENİYOR"}
-              </h2>
-
-              <p>
-                {searching
-                  ? "Kullanıcı aranıyor..."
-                  : "Eşleşme başlat"}
-              </p>
-            </>
-          )}
-
-          {matched && (
-            <>
-              <div className="matchedIcon">
-                ✓
-              </div>
-
-              <h2 className="green">
-                EŞLEŞME
-                <br />
-                BAĞLANDI
-              </h2>
-
-              <p>
-                Görüntülü sohbet aktif 🎉
-              </p>
-            </>
-          )}
-
-          {!searching && !matched && (
-
-            <button
-              className="matchBtn"
-              onClick={findMatch}
-            >
-
-              ✨
-
-              <span>
-                EŞLEŞME ARA
-              </span>
-
-            </button>
-
-          )}
-
-          {searching && !matched && (
-
-            <button className="matchBtn waiting">
-
-              ⏳
-
-              <span>
-                ARANIYOR
-              </span>
-
-            </button>
-
-          )}
-
-        </div>
-
-        <div className="leftButtons">
-
-          <button
-            className="miniBtn"
-            onClick={toggleMic}
-          >
-            {mic ? "🎤" : "🔇"}
-          </button>
-
-          <button
-            className="miniBtn"
-            onClick={toggleCam}
-          >
-            {cam ? "📷" : "🚫"}
-          </button>
-
-        </div>
-
-        {matched && (
-
-          <div className="rightButtons">
-
-            <button className="friendBtn">
-              ➕
-            </button>
-
-            <button
-              className="nextBtn"
-              onClick={nextUser}
-            >
-              🔥 GEÇ
-            </button>
-
-          </div>
-
-        )}
-
-        <div className="navbar">
-
-          <button className="active">
-            🏠
-            <span>Ana Sayfa</span>
-          </button>
-
-          <button>
-            👑
-            <span>Premium</span>
-          </button>
-
-          <button>
-            💬
-            <span>Mesajlar</span>
-          </button>
-
-          <button>
-            👤
-            <span>Profil</span>
-          </button>
-
-        </div>
-
-      </section>
-
-    </main>
   );
 }

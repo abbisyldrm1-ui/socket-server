@@ -8,7 +8,7 @@ const app = express();
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send("Aura socket server aktif");
+  res.send("AURA SOCKET SERVER AKTIF");
 });
 
 const server = http.createServer(app);
@@ -22,72 +22,86 @@ const io = new Server(server, {
 
 let waitingUser = null;
 
-const peerMap = {};
-
 io.on("connection", (socket) => {
 
-  console.log("Bağlandı:", socket.id);
-
-  socket.on("peer-id", (peerId) => {
-
-    peerMap[socket.id] = peerId;
-
-  });
+  console.log("KULLANICI BAGLANDI:", socket.id);
 
   socket.on("find-match", () => {
 
-    if (
-      waitingUser &&
-      waitingUser !== socket.id
-    ) {
+    console.log("MATCH ISTIYOR:", socket.id);
 
-      const otherUser = waitingUser;
+    // kendisi zaten waiting ise
+    if (waitingUser && waitingUser.id === socket.id) {
+      return;
+    }
 
-      const otherPeer =
-        peerMap[otherUser];
+    // waiting user varsa eşleştir
+    if (waitingUser) {
 
-      const currentPeer =
-        peerMap[socket.id];
-
-      io.to(otherUser).emit(
-        "matched",
-        {
-          peerId: currentPeer,
-        }
-      );
-
-      io.to(socket.id).emit(
-        "matched",
-        {
-          peerId: otherPeer,
-        }
-      );
+      const partner = waitingUser;
 
       waitingUser = null;
 
+      const roomId = `room-${socket.id}-${partner.id}`;
+
+      socket.join(roomId);
+      partner.join(roomId);
+
+      socket.emit("matched", {
+        roomId,
+        partnerId: partner.id,
+      });
+
+      partner.emit("matched", {
+        roomId,
+        partnerId: socket.id,
+      });
+
+      console.log("ESLESTI:", roomId);
+
     } else {
 
-      waitingUser = socket.id;
+      waitingUser = socket;
 
       socket.emit("waiting");
+
+      console.log("BEKLIYOR:", socket.id);
 
     }
 
   });
 
-  socket.on("next", () => {
+  // WebRTC signal
+  socket.on("signal", ({ to, data }) => {
 
-    waitingUser = socket.id;
-
-    socket.emit("waiting");
+    io.to(to).emit("signal", {
+      from: socket.id,
+      data,
+    });
 
   });
 
+  // sonraki kullanıcı
+  socket.on("next", () => {
+
+    console.log("SONRAKI:", socket.id);
+
+    if (waitingUser && waitingUser.id === socket.id) {
+      waitingUser = null;
+    }
+
+    socket.emit("waiting");
+
+    waitingUser = socket;
+
+  });
+
+  // bağlantı çıkışı
   socket.on("disconnect", () => {
 
-    delete peerMap[socket.id];
+    console.log("CIKTI:", socket.id);
 
-    if (waitingUser === socket.id) {
+    if (waitingUser && waitingUser.id === socket.id) {
       waitingUser = null;
     }
 
@@ -95,14 +109,8 @@ io.on("connection", (socket) => {
 
 });
 
-const PORT =
-  process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
-
-  console.log(
-    "Socket server çalışıyor:",
-    PORT
-  );
-
+  console.log("SERVER AKTIF:", PORT);
 });
