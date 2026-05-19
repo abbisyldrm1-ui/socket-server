@@ -1,121 +1,397 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import "./globals.css";
+
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import { io } from "socket.io-client";
+
+import Peer from "peerjs";
+
+const socket =
+  io("http://localhost:3001");
 
 export default function Home() {
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [mic, setMic] = useState(true);
-  const [cam, setCam] = useState(true);
+  const localVideoRef =
+    useRef<HTMLVideoElement>(null);
+
+  const remoteVideoRef =
+    useRef<HTMLVideoElement>(null);
+
+  const peerRef = useRef<any>(null);
+
+  const currentCall =
+    useRef<any>(null);
+
+  const localStream =
+    useRef<MediaStream | null>(null);
+
+  const [matched, setMatched] =
+    useState(false);
+
+  const [searching, setSearching] =
+    useState(false);
+
+  const [mic, setMic] =
+    useState(true);
+
+  const [cam, setCam] =
+    useState(true);
 
   useEffect(() => {
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+    async function startCamera() {
+
+      try {
+
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+
+        localStream.current =
+          stream;
+
+        if (localVideoRef.current) {
+
+          localVideoRef.current.srcObject =
+            stream;
+
         }
+
       } catch (err) {
         console.log(err);
       }
     }
 
     startCamera();
+
+  }, []);
+
+  useEffect(() => {
+
+    const peer =
+      new Peer();
+
+    peerRef.current = peer;
+
+    peer.on("open", (id) => {
+
+      console.log("PEER:", id);
+
+      socket.emit("peer-id", id);
+
+    });
+
+    peer.on("call", (call) => {
+
+      if (!localStream.current)
+        return;
+
+      call.answer(localStream.current);
+
+      call.on("stream", (remote) => {
+
+        if (remoteVideoRef.current) {
+
+          remoteVideoRef.current.srcObject =
+            remote;
+
+        }
+
+      });
+
+      currentCall.current = call;
+
+    });
+
+  }, []);
+
+  useEffect(() => {
+
+    socket.on("waiting", () => {
+
+      setSearching(true);
+
+      setMatched(false);
+
+    });
+
+    socket.on("matched", ({
+      peerId,
+    }) => {
+
+      setSearching(false);
+
+      setMatched(true);
+
+      if (
+        peerId &&
+        peerRef.current &&
+        localStream.current
+      ) {
+
+        const call =
+          peerRef.current.call(
+            peerId,
+            localStream.current
+          );
+
+        call.on("stream", (remote) => {
+
+          if (remoteVideoRef.current) {
+
+            remoteVideoRef.current.srcObject =
+              remote;
+
+          }
+
+        });
+
+        currentCall.current = call;
+
+      }
+
+    });
+
   }, []);
 
   const toggleMic = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
+
+    const stream =
+      localStream.current;
 
     if (stream) {
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = !mic;
-      });
+
+      stream
+        .getAudioTracks()
+        .forEach((track) => {
+
+          track.enabled = !mic;
+
+        });
+
     }
 
     setMic(!mic);
   };
 
   const toggleCam = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
+
+    const stream =
+      localStream.current;
 
     if (stream) {
-      stream.getVideoTracks().forEach((track) => {
-        track.enabled = !cam;
-      });
+
+      stream
+        .getVideoTracks()
+        .forEach((track) => {
+
+          track.enabled = !cam;
+
+        });
+
     }
 
     setCam(!cam);
   };
 
+  const findMatch = () => {
+
+    socket.emit("find-match");
+
+  };
+
+  const nextUser = () => {
+
+    currentCall.current?.close();
+
+    socket.emit("next");
+
+    setMatched(false);
+
+    setSearching(true);
+
+  };
+
   return (
+
     <main className="app">
-      <div className="phone">
+
+      <section className="phone">
+
         <div className="topBar">
-          <div className="logoArea">
-            <div className="diamond">💎</div>
+
+          <div className="logoWrap">
+
+            <div className="diamond">
+              💎
+            </div>
 
             <div>
               <h1>AURA</h1>
-              <span>LIVE</span>
+              <p>LIVE</p>
             </div>
+
           </div>
 
           <div className="onlineBox">
-            <div className="dot"></div>
+
+            <div className="onlineDot"></div>
+
             1284
+
           </div>
+
         </div>
 
         <div className="cameraBox">
-          <video ref={videoRef} autoPlay playsInline muted />
+
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+          />
+
         </div>
 
-        <div className="centerContent">
-          <div className="loadingDots">
-            <span></span>
-            <span></span>
-            <span></span>
+        {matched && (
+
+          <div className="remoteBox">
+
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+            />
+
           </div>
 
-          <h2>
-            EŞLEŞME
-            <br />
-            BEKLENİYOR
-          </h2>
+        )}
 
-          <p>Sana uygun kullanıcı aranıyor</p>
+        <div className="centerArea">
 
-          <button className="matchBtn">
-            ✨
-            <span>EŞLEŞME ARA</span>
-          </button>
+          {!matched && (
+            <>
+              <div className="dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+
+              <h2>
+                EŞLEŞME
+                <br />
+                {searching
+                  ? "ARANIYOR"
+                  : "BEKLENİYOR"}
+              </h2>
+
+              <p>
+                {searching
+                  ? "Kullanıcı aranıyor..."
+                  : "Eşleşme başlat"}
+              </p>
+            </>
+          )}
+
+          {matched && (
+            <>
+              <div className="matchedIcon">
+                ✓
+              </div>
+
+              <h2 className="green">
+                EŞLEŞME
+                <br />
+                BAĞLANDI
+              </h2>
+
+              <p>
+                Görüntülü sohbet aktif 🎉
+              </p>
+            </>
+          )}
+
+          {!searching && !matched && (
+
+            <button
+              className="matchBtn"
+              onClick={findMatch}
+            >
+
+              ✨
+
+              <span>
+                EŞLEŞME ARA
+              </span>
+
+            </button>
+
+          )}
+
+          {searching && !matched && (
+
+            <button className="matchBtn waiting">
+
+              ⏳
+
+              <span>
+                ARANIYOR
+              </span>
+
+            </button>
+
+          )}
+
         </div>
 
-        <div className="friendWrap">
-          <button className="friendBtn">
-            👤 Arkadaş Ekle
-          </button>
+        <div className="leftButtons">
 
-          <button className="nextBtn">
-            🔥 SONRAKİ
-          </button>
-        </div>
-
-        <div className="controlArea">
-          <button className="circleBtn" onClick={toggleMic}>
+          <button
+            className="miniBtn"
+            onClick={toggleMic}
+          >
             {mic ? "🎤" : "🔇"}
           </button>
 
-          <button className="circleBtn" onClick={toggleCam}>
+          <button
+            className="miniBtn"
+            onClick={toggleCam}
+          >
             {cam ? "📷" : "🚫"}
           </button>
+
         </div>
 
+        {matched && (
+
+          <div className="rightButtons">
+
+            <button className="friendBtn">
+              ➕
+            </button>
+
+            <button
+              className="nextBtn"
+              onClick={nextUser}
+            >
+              🔥 GEÇ
+            </button>
+
+          </div>
+
+        )}
+
         <div className="navbar">
+
           <button className="active">
             🏠
             <span>Ana Sayfa</span>
@@ -135,8 +411,11 @@ export default function Home() {
             👤
             <span>Profil</span>
           </button>
+
         </div>
-      </div>
+
+      </section>
+
     </main>
   );
 }
