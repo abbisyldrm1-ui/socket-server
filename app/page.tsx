@@ -1,65 +1,142 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [mic, setMic] = useState(true);
+  const [cam, setCam] = useState(true);
+
+  useEffect(() => {
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    startCamera();
+  }, []);
+
+  const toggleMic = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
+
+    if (stream) {
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = !mic;
+      });
+    }
+
+    setMic(!mic);
+  };
+
+  const toggleCam = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
+
+    if (stream) {
+      stream.getVideoTracks().forEach((track) => {
+        track.enabled = !cam;
+      });
+    }
+
+    setCam(!cam);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="app">
+      <div className="phone">
+        <div className="topBar">
+          <div className="logoArea">
+            <div className="diamond">💎</div>
+
+            <div>
+              <h1>AURA</h1>
+              <span>LIVE</span>
+            </div>
+          </div>
+
+          <div className="onlineBox">
+            <div className="dot"></div>
+            1284
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="cameraBox">
+          <video ref={videoRef} autoPlay playsInline muted />
         </div>
-      </main>
-    </div>
+
+        <div className="centerContent">
+          <div className="loadingDots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+
+          <h2>
+            EŞLEŞME
+            <br />
+            BEKLENİYOR
+          </h2>
+
+          <p>Sana uygun kullanıcı aranıyor</p>
+
+          <button className="matchBtn">
+            ✨
+            <span>EŞLEŞME ARA</span>
+          </button>
+        </div>
+
+        <div className="friendWrap">
+          <button className="friendBtn">
+            👤 Arkadaş Ekle
+          </button>
+
+          <button className="nextBtn">
+            🔥 SONRAKİ
+          </button>
+        </div>
+
+        <div className="controlArea">
+          <button className="circleBtn" onClick={toggleMic}>
+            {mic ? "🎤" : "🔇"}
+          </button>
+
+          <button className="circleBtn" onClick={toggleCam}>
+            {cam ? "📷" : "🚫"}
+          </button>
+        </div>
+
+        <div className="navbar">
+          <button className="active">
+            🏠
+            <span>Ana Sayfa</span>
+          </button>
+
+          <button>
+            👑
+            <span>Premium</span>
+          </button>
+
+          <button>
+            💬
+            <span>Mesajlar</span>
+          </button>
+
+          <button>
+            👤
+            <span>Profil</span>
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
